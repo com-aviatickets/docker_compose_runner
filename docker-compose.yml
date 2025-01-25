@@ -1,0 +1,143 @@
+version: '3.9'
+
+networks:
+  at-network:
+    name: at-network
+
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5434:5432"
+    networks:
+      - at-network
+
+  profile:
+    build:
+      context: ../profile
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8080"
+    container_name: profile
+    depends_on:
+      - config
+      - eureka
+      - postgres
+    networks:
+      - at-network
+    deploy:
+      mode: replicated
+      restart_policy:
+        condition: on-failure
+    environment:
+      - "spring.config.import=optional:configserver:http://config:8087"
+      - "spring.datasource.url=jdbc:postgresql://postgres:5432/postgres"
+
+  storage:
+    build:
+      context: ../storage
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    container_name: storage
+    depends_on:
+      - postgres
+      - config
+      - eureka
+    networks:
+      - at-network
+    deploy:
+      mode: replicated
+      restart_policy:
+        condition: on-failure
+    environment:
+      - "spring.config.import=optional:configserver:http://config:8087"
+      - "spring.datasource.url=jdbc:postgresql://postgres:5432/postgres"
+
+  eureka:
+    build:
+      context: ../eureka
+      dockerfile: Dockerfile
+    ports:
+      - "8761:8761"
+    container_name: eureka
+    networks:
+      - at-network
+
+  config:
+    build:
+      context: ../config
+      dockerfile: Dockerfile
+    ports:
+      - "8087:8087"
+    container_name: config
+    depends_on:
+      - eureka
+    networks:
+      - at-network
+    environment:
+      - "POSTGRES_URL=jdbc:postgresql://postgres:5434/postgres"
+      - "EUREKA_URI=http://eureka:8761/eureka"
+
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    ports:
+      - "9000:8082"
+    container_name: gateway
+    depends_on:
+      - eureka
+      - config
+    networks:
+      - at-network
+    environment:
+      - "spring.config.import=optional:configserver:http://config:8087"
+
+  booking:
+    build:
+      context: ../booking
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8080"
+    container_name: booking
+    depends_on:
+      - config
+      - eureka
+      - postgres
+    networks:
+      - at-network
+    deploy:
+      mode: replicated
+      restart_policy:
+        condition: on-failure
+    environment:
+      - "spring.config.import=optional:configserver:http://config:8087"
+      - "spring.datasource.url=jdbc:postgresql://postgres:5432/postgres"
+
+  flight:
+    build:
+      context: ../flight
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8080"
+    container_name: flight
+    depends_on:
+      - config
+      - eureka
+      - postgres
+    networks:
+      - at-network
+    deploy:
+      mode: replicated
+      restart_policy:
+        condition: on-failure
+    environment:
+      - "spring.config.import=optional:configserver:http://config:8087"
+      - "spring.datasource.url=jdbc:postgresql://postgres:5432/postgres"
